@@ -239,6 +239,36 @@ SHERPA_ONNX_API typedef struct SherpaOnnxOnlineRecognizerResult {
   const char *json;
 } SherpaOnnxOnlineRecognizerResult;
 
+SHERPA_ONNX_API typedef struct SherpaOnnxOnlineRecognizerFastResult {
+  // Recognized text
+  const char *text;
+
+  // Pointer to continuous memory which holds string based tokens
+  // which are separated by \0
+  const char *tokens;
+
+  // Pointer to continuous memory which holds timestamps
+  //
+  // Caution: If timestamp information is not available, this pointer is NULL.
+  // Please check whether it is NULL before you access it; otherwise, you would
+  // get segmentation fault.
+  float *timestamps;
+
+  // The number of tokens/timestamps in above pointer
+  int32_t count;
+
+  // Pointer to ontinuous memory which holds probs
+  // Caution: may be null
+  float *ys_probs;
+
+  // start time of the current segment
+  float start_time;
+
+  // the id of the segment
+  int32_t segment;
+
+} SherpaOnnxOnlineRecognizerFastResult;
+
 /// Note: OnlineRecognizer here means StreamingRecognizer.
 /// It does not need to access the Internet during recognition.
 /// Everything is run locally.
@@ -352,6 +382,23 @@ SherpaOnnxGetOnlineStreamResult(const SherpaOnnxOnlineRecognizer *recognizer,
 /// @param r A pointer returned by SherpaOnnxGetOnlineStreamResult()
 SHERPA_ONNX_API void SherpaOnnxDestroyOnlineRecognizerResult(
     const SherpaOnnxOnlineRecognizerResult *r);
+
+/// Get the complete decoding results so far for an OnlineStream (faster)
+///
+/// @param recognizer A pointer returned by SherpaOnnxCreateOnlineRecognizer().
+/// @param stream A pointer returned by SherpaOnnxCreateOnlineStream().
+/// @return A pointer containing the result. The user has to invoke
+///         SherpaOnnxDestroyOnlineRecognizerFastResult() to free the returned
+///         pointer to avoid memory leak.
+SHERPA_ONNX_API const SherpaOnnxOnlineRecognizerFastResult *
+SherpaOnnxGetOnlineStreamFastResult(const SherpaOnnxOnlineRecognizer *recognizer,
+                                const SherpaOnnxOnlineStream *stream);
+
+/// Destroy the pointer returned by SherpaOnnxGetOnlineStreamFastResult().
+///
+/// @param r A pointer returned by SherpaOnnxGetOnlineStreamFastResult()
+SHERPA_ONNX_API void SherpaOnnxDestroyOnlineRecognizerFastResult(
+    const SherpaOnnxOnlineRecognizerFastResult *r);
 
 /// Return the result as a json string.
 /// The user has to invoke

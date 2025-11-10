@@ -314,6 +314,71 @@ const SherpaOnnxOnlineRecognizerResult *SherpaOnnxGetOnlineStreamResult(
   return r;
 }
 
+const SherpaOnnxOnlineRecognizerFastResult *SherpaOnnxGetOnlineStreamFastResult(
+    const SherpaOnnxOnlineRecognizer *recognizer,
+    const SherpaOnnxOnlineStream *stream) {
+  sherpa_onnx::OnlineRecognizerResult result =
+      recognizer->impl->GetResult(stream->impl.get());
+  const auto &text = result.text;
+
+  auto r = new SherpaOnnxOnlineRecognizerFastResult;
+  memset(r, 0, sizeof(SherpaOnnxOnlineRecognizerFastResult));
+
+  // copy text
+  char *pText = new char[text.size() + 1];
+  std::copy(text.begin(), text.end(), pText);
+  pText[text.size()] = 0;
+  r->text = pText;
+
+  r->segment = result.segment;
+  r->start_time = result.start_time;
+
+  // copy tokens
+  auto count = result.tokens.size();
+  if (count > 0) {
+    size_t total_length = 0;
+    for (const auto &token : result.tokens) {
+      // +1 for the null character at the end of each token
+      total_length += token.size() + 1;
+    }
+
+    r->count = count;
+    // Each word ends with nullptr
+    char *tokens = new char[total_length]{};
+    int32_t pos = 0;
+    for (int32_t i = 0; i < r->count; ++i) {
+      memcpy(tokens + pos, result.tokens[i].c_str(), result.tokens[i].size());
+      // +1 to move past the null character
+      pos += result.tokens[i].size() + 1;
+    }
+    r->tokens = tokens;
+
+    if (!result.timestamps.empty() && result.timestamps.size() == r->count) {
+      r->timestamps = new float[r->count];
+      std::copy(result.timestamps.begin(), result.timestamps.end(),
+                r->timestamps);
+    } else {
+      r->timestamps = nullptr;
+    }
+
+    if (!result.ys_probs.empty() && result.ys_probs.size() == r->count) {
+      r->ys_probs = new float[r->count];
+      std::copy(result.ys_probs.begin(), result.ys_probs.end(),
+                r->ys_probs);
+    } else {
+      r->ys_probs = nullptr;
+    }
+
+  } else {
+    r->count = 0;
+    r->timestamps = nullptr;
+    r->ys_probs = nullptr;
+    r->tokens = nullptr;
+  }
+
+  return r;
+}
+
 void SherpaOnnxDestroyOnlineRecognizerResult(
     const SherpaOnnxOnlineRecognizerResult *r) {
   if (r) {
@@ -321,6 +386,17 @@ void SherpaOnnxDestroyOnlineRecognizerResult(
     delete[] r->json;
     delete[] r->tokens;
     delete[] r->tokens_arr;
+    delete[] r->timestamps;
+    delete r;
+  }
+}
+
+void SherpaOnnxDestroyOnlineRecognizerFastResult(
+    const SherpaOnnxOnlineRecognizerFastResult *r) {
+  if (r) {
+    delete[] r->text;
+    delete[] r->tokens;
+    delete[] r->ys_probs;
     delete[] r->timestamps;
     delete r;
   }
