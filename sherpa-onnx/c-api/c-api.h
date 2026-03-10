@@ -268,6 +268,7 @@ SHERPA_ONNX_API typedef struct SherpaOnnxOnlineRecognizerFastResult {
 SHERPA_ONNX_API typedef struct SherpaOnnxOnlineRecognizer
     SherpaOnnxOnlineRecognizer;
 SHERPA_ONNX_API typedef struct SherpaOnnxOnlineStream SherpaOnnxOnlineStream;
+SHERPA_ONNX_API typedef struct SherpaOnnxEndpoint SherpaOnnxEndpoint;
 
 /// @param config  Config for the recognizer.
 /// @return Return a pointer to the recognizer. The user has to invoke
@@ -275,6 +276,13 @@ SHERPA_ONNX_API typedef struct SherpaOnnxOnlineStream SherpaOnnxOnlineStream;
 SHERPA_ONNX_API const SherpaOnnxOnlineRecognizer *
 SherpaOnnxCreateOnlineRecognizer(
     const SherpaOnnxOnlineRecognizerConfig *config);
+
+SHERPA_ONNX_API const SherpaOnnxEndpoint *
+SherpaOnnxCreateEndpoint(float rule1, float rule2, float rule3);
+
+SHERPA_ONNX_API void SherpaOnnxDestroyEndpoint(
+    const SherpaOnnxEndpoint *endpoint);
+
 
 /// Free a pointer returned by SherpaOnnxCreateOnlineRecognizer()
 ///
@@ -428,6 +436,9 @@ SHERPA_ONNX_API void SherpaOnnxOnlineStreamInputFinished(
 SHERPA_ONNX_API int32_t
 SherpaOnnxOnlineStreamIsEndpoint(const SherpaOnnxOnlineRecognizer *recognizer,
                                  const SherpaOnnxOnlineStream *stream);
+
+SHERPA_ONNX_API int32_t
+SherpaOnnxOnlineStreamReachedEndpoint(const SherpaOnnxOnlineStream *stream, const SherpaOnnxEndpoint *endpoint);
 
 // for displaying results on Linux/macOS.
 SHERPA_ONNX_API typedef struct SherpaOnnxDisplay SherpaOnnxDisplay;
