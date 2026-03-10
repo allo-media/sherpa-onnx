@@ -19,6 +19,7 @@
 #include "sherpa-onnx/csrc/audio-tagging.h"
 #include "sherpa-onnx/csrc/circular-buffer.h"
 #include "sherpa-onnx/csrc/display.h"
+#include "sherpa-onnx/csrc/endpoint.h"
 #include "sherpa-onnx/csrc/file-utils.h"
 #include "sherpa-onnx/csrc/keyword-spotter.h"
 #include "sherpa-onnx/csrc/macros.h"
@@ -61,6 +62,10 @@ struct SherpaOnnxOnlineStream {
 
 struct SherpaOnnxDisplay {
   std::unique_ptr<sherpa_onnx::Display> impl;
+};
+
+struct SherpaOnnxEndpoint {
+  std::unique_ptr<sherpa_onnx::Endpoint> impl;
 };
 
 #define SHERPA_ONNX_OR(x, y) (x ? x : y)
@@ -221,6 +226,22 @@ const SherpaOnnxOnlineStream *SherpaOnnxCreateOnlineStreamWithHotwords(
 
 void SherpaOnnxDestroyOnlineStream(const SherpaOnnxOnlineStream *stream) {
   delete stream;
+}
+
+const SherpaOnnxEndpoint *
+SherpaOnnxCreateEndpoint(float rule1, float rule2, float rule3) {
+  sherpa_onnx::EndpointRule the_rule1{false, rule1, 0.0};
+  sherpa_onnx::EndpointRule the_rule2{true, rule2, 0.0};
+  sherpa_onnx::EndpointRule the_rule3{false, 0.0, rule3};
+  sherpa_onnx::EndpointConfig config(the_rule1, the_rule2, the_rule3);
+  SherpaOnnxEndpoint *endpoint = new SherpaOnnxEndpoint;
+  endpoint->impl = std::make_unique<sherpa_onnx::Endpoint>(config);
+  return endpoint;
+};
+
+void SherpaOnnxDestroyEndpoint(
+    const SherpaOnnxEndpoint *endpoint) {
+  delete endpoint;
 }
 
 void SherpaOnnxOnlineStreamAcceptWaveform(const SherpaOnnxOnlineStream *stream,
@@ -419,6 +440,22 @@ int32_t SherpaOnnxOnlineStreamIsEndpoint(
     const SherpaOnnxOnlineRecognizer *recognizer,
     const SherpaOnnxOnlineStream *stream) {
   return recognizer->impl->IsEndpoint(stream->impl.get());
+}
+
+int32_t SherpaOnnxOnlineStreamReachedEndpoint(
+  const SherpaOnnxOnlineStream *stream,
+  const SherpaOnnxEndpoint *endpoint) {
+    int32_t num_processed_frames = stream->impl->GetNumProcessedFrames();
+
+    // frame shift is 10 milliseconds
+    float frame_shift_in_seconds = 0.01;
+
+    // subsampling factor is 4
+    int32_t trailing_silence_frames = stream->impl->GetResult().num_trailing_blanks * 4;
+
+    return endpoint->impl->IsEndpoint(num_processed_frames, trailing_silence_frames,
+                                frame_shift_in_seconds);
+
 }
 
 const SherpaOnnxDisplay *SherpaOnnxCreateDisplay(int32_t max_word_per_line) {
