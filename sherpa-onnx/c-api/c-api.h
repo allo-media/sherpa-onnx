@@ -329,6 +329,9 @@ SHERPA_ONNX_API void SherpaOnnxOnlineStreamAcceptWaveform(
     const SherpaOnnxOnlineStream *stream, int32_t sample_rate,
     const float *samples, int32_t n);
 
+SHERPA_ONNX_API int32_t SherpaOnnxOnlineStreamGetNumFramesProcessed(
+    const SherpaOnnxOnlineStream *stream);
+
 /// Return 1 if there are enough number of feature frames for decoding.
 /// Return 0 otherwise.
 ///
