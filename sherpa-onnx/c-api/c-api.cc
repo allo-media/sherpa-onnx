@@ -250,6 +250,11 @@ void SherpaOnnxOnlineStreamAcceptWaveform(const SherpaOnnxOnlineStream *stream,
   stream->impl->AcceptWaveform(sample_rate, samples, n);
 }
 
+int32_t SherpaOnnxOnlineStreamGetNumFramesProcessed(
+    const SherpaOnnxOnlineStream *stream) {
+  return stream->impl->GetNumProcessedFrames();
+}
+
 int32_t SherpaOnnxIsOnlineStreamReady(
     const SherpaOnnxOnlineRecognizer *recognizer,
     const SherpaOnnxOnlineStream *stream) {
