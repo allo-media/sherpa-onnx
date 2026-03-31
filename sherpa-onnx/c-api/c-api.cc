@@ -228,8 +228,8 @@ void SherpaOnnxDestroyOnlineStream(const SherpaOnnxOnlineStream *stream) {
   delete stream;
 }
 
-const SherpaOnnxEndpoint *
-SherpaOnnxCreateEndpoint(float rule1, float rule2, float rule3) {
+const SherpaOnnxEndpoint *SherpaOnnxCreateEndpoint(float rule1, float rule2,
+                                                   float rule3) {
   sherpa_onnx::EndpointRule the_rule1{false, rule1, 0.0};
   sherpa_onnx::EndpointRule the_rule2{true, rule2, 0.0};
   sherpa_onnx::EndpointRule the_rule3{false, 0.0, rule3};
@@ -239,8 +239,7 @@ SherpaOnnxCreateEndpoint(float rule1, float rule2, float rule3) {
   return endpoint;
 };
 
-void SherpaOnnxDestroyEndpoint(
-    const SherpaOnnxEndpoint *endpoint) {
+void SherpaOnnxDestroyEndpoint(const SherpaOnnxEndpoint *endpoint) {
   delete endpoint;
 }
 
@@ -253,6 +252,17 @@ void SherpaOnnxOnlineStreamAcceptWaveform(const SherpaOnnxOnlineStream *stream,
 int32_t SherpaOnnxOnlineStreamGetNumFramesProcessed(
     const SherpaOnnxOnlineStream *stream) {
   return stream->impl->GetNumProcessedFrames();
+}
+
+int32_t SherpaOnnxOnlineStreamGetNumFramesSinceStart(
+    const SherpaOnnxOnlineStream *stream) {
+  return stream->impl->GetNumFramesSinceStart();
+}
+
+int32_t SherpaOnnxOnlineStreamGetTrailingSilence(
+    const SherpaOnnxOnlineStream *stream) {
+  // subsampling 4
+  return stream->impl->GetResult().num_trailing_blanks * 4;
 }
 
 int32_t SherpaOnnxIsOnlineStreamReady(
@@ -381,8 +391,7 @@ const SherpaOnnxOnlineRecognizerFastResult *SherpaOnnxGetOnlineStreamFastResult(
 
     if (!result.ys_probs.empty() && result.ys_probs.size() == r->count) {
       r->ys_probs = new float[r->count];
-      std::copy(result.ys_probs.begin(), result.ys_probs.end(),
-                r->ys_probs);
+      std::copy(result.ys_probs.begin(), result.ys_probs.end(), r->ys_probs);
     } else {
       r->ys_probs = nullptr;
     }
@@ -448,19 +457,18 @@ int32_t SherpaOnnxOnlineStreamIsEndpoint(
 }
 
 int32_t SherpaOnnxOnlineStreamReachedEndpoint(
-  const SherpaOnnxOnlineStream *stream,
-  const SherpaOnnxEndpoint *endpoint) {
-    int32_t num_processed_frames = stream->impl->GetNumProcessedFrames();
+    const SherpaOnnxOnlineStream *stream, const SherpaOnnxEndpoint *endpoint) {
+  int32_t num_processed_frames = stream->impl->GetNumProcessedFrames();
 
-    // frame shift is 10 milliseconds
-    float frame_shift_in_seconds = 0.01;
+  // frame shift is 10 milliseconds
+  float frame_shift_in_seconds = 0.01;
 
-    // subsampling factor is 4
-    int32_t trailing_silence_frames = stream->impl->GetResult().num_trailing_blanks * 4;
+  // subsampling factor is 4
+  int32_t trailing_silence_frames =
+      stream->impl->GetResult().num_trailing_blanks * 4;
 
-    return endpoint->impl->IsEndpoint(num_processed_frames, trailing_silence_frames,
-                                frame_shift_in_seconds);
-
+  return endpoint->impl->IsEndpoint(
+      num_processed_frames, trailing_silence_frames, frame_shift_in_seconds);
 }
 
 const SherpaOnnxDisplay *SherpaOnnxCreateDisplay(int32_t max_word_per_line) {

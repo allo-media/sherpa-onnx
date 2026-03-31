@@ -277,12 +277,12 @@ SHERPA_ONNX_API const SherpaOnnxOnlineRecognizer *
 SherpaOnnxCreateOnlineRecognizer(
     const SherpaOnnxOnlineRecognizerConfig *config);
 
-SHERPA_ONNX_API const SherpaOnnxEndpoint *
-SherpaOnnxCreateEndpoint(float rule1, float rule2, float rule3);
+SHERPA_ONNX_API const SherpaOnnxEndpoint *SherpaOnnxCreateEndpoint(float rule1,
+                                                                   float rule2,
+                                                                   float rule3);
 
 SHERPA_ONNX_API void SherpaOnnxDestroyEndpoint(
     const SherpaOnnxEndpoint *endpoint);
-
 
 /// Free a pointer returned by SherpaOnnxCreateOnlineRecognizer()
 ///
@@ -331,6 +331,12 @@ SHERPA_ONNX_API void SherpaOnnxOnlineStreamAcceptWaveform(
 
 SHERPA_ONNX_API int32_t SherpaOnnxOnlineStreamGetNumFramesProcessed(
     const SherpaOnnxOnlineStream *stream);
+
+SHERPA_ONNX_API int32_t SherpaOnnxOnlineStreamGetNumFramesSinceStart(
+    const SherpaOnnxOnlineStream *stream);
+
+SHERPA_ONNX_API int32_t
+SherpaOnnxOnlineStreamGetTrailingSilence(const SherpaOnnxOnlineStream *stream);
 
 /// Return 1 if there are enough number of feature frames for decoding.
 /// Return 0 otherwise.
@@ -395,8 +401,9 @@ SHERPA_ONNX_API void SherpaOnnxDestroyOnlineRecognizerResult(
 ///         SherpaOnnxDestroyOnlineRecognizerFastResult() to free the returned
 ///         pointer to avoid memory leak.
 SHERPA_ONNX_API const SherpaOnnxOnlineRecognizerFastResult *
-SherpaOnnxGetOnlineStreamFastResult(const SherpaOnnxOnlineRecognizer *recognizer,
-                                const SherpaOnnxOnlineStream *stream);
+SherpaOnnxGetOnlineStreamFastResult(
+    const SherpaOnnxOnlineRecognizer *recognizer,
+    const SherpaOnnxOnlineStream *stream);
 
 /// Destroy the pointer returned by SherpaOnnxGetOnlineStreamFastResult().
 ///
@@ -440,8 +447,8 @@ SHERPA_ONNX_API int32_t
 SherpaOnnxOnlineStreamIsEndpoint(const SherpaOnnxOnlineRecognizer *recognizer,
                                  const SherpaOnnxOnlineStream *stream);
 
-SHERPA_ONNX_API int32_t
-SherpaOnnxOnlineStreamReachedEndpoint(const SherpaOnnxOnlineStream *stream, const SherpaOnnxEndpoint *endpoint);
+SHERPA_ONNX_API int32_t SherpaOnnxOnlineStreamReachedEndpoint(
+    const SherpaOnnxOnlineStream *stream, const SherpaOnnxEndpoint *endpoint);
 
 // for displaying results on Linux/macOS.
 SHERPA_ONNX_API typedef struct SherpaOnnxDisplay SherpaOnnxDisplay;
