@@ -55,7 +55,9 @@ class OnlineConformerTransducerModel : public OnlineTransducerModel {
 
  private:
   Ort::Env env_;
-  Ort::SessionOptions sess_opts_;
+  Ort::SessionOptions encoder_sess_opts_;
+  Ort::SessionOptions decoder_sess_opts_;
+  Ort::SessionOptions joiner_sess_opts_;
   Ort::AllocatorWithDefaultOptions allocator_;
 
   std::unique_ptr<Ort::Session> encoder_sess_;
@@ -88,7 +90,7 @@ class OnlineConformerTransducerModel : public OnlineTransducerModel {
   int32_t cnn_module_kernel_ = 0;
   int32_t context_size_ = 0;
   int32_t left_context_ = 0;
-  // TODO(jingzhaoou): to retrieve from model medadata
+  // TODO(jingzhaoou): to retrieve from model metadata
   int32_t right_context_ = 4;
   int32_t encoder_dim_ = 0;
   int32_t pad_length_ = 0;

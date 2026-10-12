@@ -109,7 +109,8 @@ void ProviderConfig::Register(ParseOptions *po) {
 
   po->Register("device", &device, "GPU device index for CUDA and Trt EP");
   po->Register("provider", &provider,
-               "Specify a provider to use: cpu, cuda, coreml");
+               "Specify a provider to use: cpu, cuda, coreml, openvino, trt, "
+               "rknn, qnn");
 }
 
 bool ProviderConfig::Validate() const {

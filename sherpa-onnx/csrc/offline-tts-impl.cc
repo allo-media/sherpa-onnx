@@ -19,6 +19,8 @@
 #include "sherpa-onnx/csrc/offline-tts-kitten-impl.h"
 #include "sherpa-onnx/csrc/offline-tts-kokoro-impl.h"
 #include "sherpa-onnx/csrc/offline-tts-matcha-impl.h"
+#include "sherpa-onnx/csrc/offline-tts-pocket-impl.h"
+#include "sherpa-onnx/csrc/offline-tts-supertonic-impl.h"
 #include "sherpa-onnx/csrc/offline-tts-vits-impl.h"
 #include "sherpa-onnx/csrc/offline-tts-zipvoice-impl.h"
 
@@ -42,13 +44,17 @@ std::unique_ptr<OfflineTtsImpl> OfflineTtsImpl::Create(
     return std::make_unique<OfflineTtsVitsImpl>(config);
   } else if (!config.model.matcha.acoustic_model.empty()) {
     return std::make_unique<OfflineTtsMatchaImpl>(config);
-  } else if (!config.model.zipvoice.text_model.empty() &&
-             !config.model.zipvoice.flow_matching_model.empty()) {
+  } else if (!config.model.zipvoice.encoder.empty() &&
+             !config.model.zipvoice.decoder.empty()) {
     return std::make_unique<OfflineTtsZipvoiceImpl>(config);
   } else if (!config.model.kokoro.model.empty()) {
     return std::make_unique<OfflineTtsKokoroImpl>(config);
   } else if (!config.model.kitten.model.empty()) {
     return std::make_unique<OfflineTtsKittenImpl>(config);
+  } else if (!config.model.pocket.lm_flow.empty()) {
+    return std::make_unique<OfflineTtsPocketImpl>(config);
+  } else if (!config.model.supertonic.tts_json.empty()) {
+    return std::make_unique<OfflineTtsSupertonicImpl>(config);
   }
 
   SHERPA_ONNX_LOGE("Please provide a tts model.");
@@ -63,13 +69,17 @@ std::unique_ptr<OfflineTtsImpl> OfflineTtsImpl::Create(
     return std::make_unique<OfflineTtsVitsImpl>(mgr, config);
   } else if (!config.model.matcha.acoustic_model.empty()) {
     return std::make_unique<OfflineTtsMatchaImpl>(mgr, config);
-  } else if (!config.model.zipvoice.text_model.empty() &&
-             !config.model.zipvoice.flow_matching_model.empty()) {
+  } else if (!config.model.zipvoice.encoder.empty() &&
+             !config.model.zipvoice.decoder.empty()) {
     return std::make_unique<OfflineTtsZipvoiceImpl>(mgr, config);
   } else if (!config.model.kokoro.model.empty()) {
     return std::make_unique<OfflineTtsKokoroImpl>(mgr, config);
   } else if (!config.model.kitten.model.empty()) {
     return std::make_unique<OfflineTtsKittenImpl>(mgr, config);
+  } else if (!config.model.pocket.lm_flow.empty()) {
+    return std::make_unique<OfflineTtsPocketImpl>(mgr, config);
+  } else if (!config.model.supertonic.tts_json.empty()) {
+    return std::make_unique<OfflineTtsSupertonicImpl>(mgr, config);
   }
 
   SHERPA_ONNX_LOGE("Please provide a tts model.");

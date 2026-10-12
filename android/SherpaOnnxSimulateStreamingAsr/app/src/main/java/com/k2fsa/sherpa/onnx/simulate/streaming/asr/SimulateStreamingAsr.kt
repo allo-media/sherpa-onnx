@@ -23,6 +23,23 @@ fun assetExists(assetManager: AssetManager, path: String): Boolean {
     return files.contains(fileName)
 }
 
+fun assetListExists(
+    assetManager: AssetManager,
+    paths: String
+): Boolean {
+    if (paths.isBlank()) return false
+
+    val pathList = paths.split(",")
+        .map { it.trim() }
+        .filter { it.isNotEmpty() }
+
+    if (pathList.isEmpty()) return false
+
+    return pathList.all { path ->
+        assetExists(assetManager, path)
+    }
+}
+
 fun copyAssetToInternalStorage(path: String, context: Context): String {
     val targetRoot = context.filesDir
     val outFile = File(targetRoot, path)
@@ -54,6 +71,23 @@ fun copyAssetToInternalStorage(path: String, context: Context): String {
     Log.i(TAG, "Copied $path to $targetRoot/$path")
 
     return outFile.absolutePath
+}
+
+fun copyAssetListToInternalStorage(
+    paths: String,
+    context: Context
+): String {
+    if (paths.isBlank()) return paths
+
+    val pathList = paths.split(",")
+        .map { it.trim() }
+        .filter { it.isNotEmpty() }
+
+    val copiedPaths = pathList.map { path ->
+        copyAssetToInternalStorage(path, context)
+    }
+
+    return copiedPaths.joinToString(",")
 }
 
 
@@ -125,20 +159,100 @@ object SimulateStreamingAsr {
                 OfflineRecognizer.prependAdspLibraryPath(context.applicationInfo.nativeLibraryDir)
 
                 // for qnn, we need to copy *.so files from assets folder to sd card
-                if (config.modelConfig.senseVoice.qnnConfig.backendLib.isEmpty()) {
+                if (config.modelConfig.senseVoice.qnnConfig.backendLib.isEmpty()
+                    && config.modelConfig.zipformerCtc.qnnConfig.backendLib.isEmpty()
+                    && config.modelConfig.paraformer.qnnConfig.backendLib.isEmpty()
+                    && config.modelConfig.transducer.qnnConfig.backendLib.isEmpty()
+                ) {
                     Log.e(TAG, "You should provide libQnnHtp.so for qnn")
                     throw IllegalArgumentException("You should provide libQnnHtp.so for qnn")
                 }
                 config.modelConfig.tokens =
                     copyAssetToInternalStorage(config.modelConfig.tokens, context)
 
-                config.modelConfig.senseVoice.model =
-                    copyAssetToInternalStorage(config.modelConfig.senseVoice.model, context)
+                if (config.modelConfig.senseVoice.model.isNotEmpty() || assetExists(
+                        context.assets,
+                        path = config.modelConfig.senseVoice.qnnConfig.contextBinary
+                    )
+                ) {
+                    if (config.modelConfig.senseVoice.model.isNotEmpty()) {
+                        config.modelConfig.senseVoice.model =
+                            copyAssetToInternalStorage(config.modelConfig.senseVoice.model, context)
+                    }
 
-                config.modelConfig.senseVoice.qnnConfig.contextBinary = copyAssetToInternalStorage(
-                    config.modelConfig.senseVoice.qnnConfig.contextBinary,
-                    context
-                )
+                    config.modelConfig.senseVoice.qnnConfig.contextBinary =
+                        copyAssetToInternalStorage(
+                            config.modelConfig.senseVoice.qnnConfig.contextBinary,
+                            context
+                        )
+                } else if (config.modelConfig.zipformerCtc.model.isNotEmpty() ||
+                    assetExists(
+                        context.assets,
+                        path = config.modelConfig.zipformerCtc.qnnConfig.contextBinary
+                    )
+                ) {
+                    if (config.modelConfig.zipformerCtc.model.isNotEmpty()) {
+                        config.modelConfig.zipformerCtc.model =
+                            copyAssetToInternalStorage(
+                                config.modelConfig.zipformerCtc.model,
+                                context
+                            )
+                    }
+
+                    config.modelConfig.zipformerCtc.qnnConfig.contextBinary =
+                        copyAssetToInternalStorage(
+                            config.modelConfig.zipformerCtc.qnnConfig.contextBinary,
+                            context
+                        )
+                } else if (config.modelConfig.paraformer.model.isNotEmpty()
+                    || assetListExists(
+                        context.assets,
+                        config.modelConfig.paraformer.qnnConfig.contextBinary
+                    )
+                ) {
+                    if (config.modelConfig.paraformer.model.isNotEmpty()) {
+                        config.modelConfig.paraformer.model =
+                            copyAssetListToInternalStorage(
+                                config.modelConfig.paraformer.model,
+                                context
+                            )
+                    }
+
+                    config.modelConfig.paraformer.qnnConfig.contextBinary =
+                        copyAssetListToInternalStorage(
+                            config.modelConfig.paraformer.qnnConfig.contextBinary,
+                            context
+                        )
+                } else if (config.modelConfig.transducer.encoder.isNotEmpty()
+                    || assetListExists(
+                        context.assets,
+                        config.modelConfig.transducer.qnnConfig.contextBinary
+                    )
+                ) {
+                    if (config.modelConfig.transducer.encoder.isNotEmpty()) {
+                        config.modelConfig.transducer.encoder =
+                            copyAssetListToInternalStorage(
+                                config.modelConfig.transducer.encoder,
+                                context
+                            )
+                        config.modelConfig.transducer.decoder =
+                            copyAssetListToInternalStorage(
+                                config.modelConfig.transducer.decoder,
+                                context
+                            )
+                        config.modelConfig.transducer.joiner =
+                            copyAssetListToInternalStorage(
+                                config.modelConfig.transducer.joiner,
+                                context
+                            )
+                    }
+
+                    config.modelConfig.transducer.qnnConfig.contextBinary =
+                        copyAssetListToInternalStorage(
+                            config.modelConfig.transducer.qnnConfig.contextBinary,
+                            context
+                        )
+                }
 
                 if (config.hr.lexicon.isNotEmpty()) {
                     config.hr.lexicon = copyAssetToInternalStorage(config.hr.lexicon, context)

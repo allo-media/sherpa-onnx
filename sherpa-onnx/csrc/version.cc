@@ -4,21 +4,27 @@
 
 #include "sherpa-onnx/csrc/version.h"
 
+#include "onnxruntime_c_api.h"  // NOLINT
+
 namespace sherpa_onnx {
 
 const char *GetGitDate() {
-  static const char *date = "Thu Nov 13 19:08:29 2025";
+  static const char *date = "Thu Sep 10 17:15:24 2026";
   return date;
 }
 
 const char *GetGitSha1() {
-  static const char *sha1 = "6d199b18";
+  static const char *sha1 = "8c8e275d";
   return sha1;
 }
 
 const char *GetVersionStr() {
-  static const char *version = "1.12.17";
+  static const char *version = "1.13.8";
   return version;
+}
+
+const char *GetOnnxruntimeVersionStr() {
+  return OrtGetApiBase()->GetVersionString();
 }
 
 }  // namespace sherpa_onnx

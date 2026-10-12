@@ -32,17 +32,17 @@ struct Hypothesis {
 
   // The acoustic probability for each token in ys.
   // Used for keyword spotting task.
-  // For transducer mofified beam-search and greedy-search,
+  // For transducer modified beam-search and greedy-search,
   // this is filled with log_posterior scores.
   std::vector<float> ys_probs;
 
   // lm_probs[i] contains the lm score for each token in ys.
-  // Used only in transducer mofified beam-search.
+  // Used only in transducer modified beam-search.
   // Elements filled only if LM is used.
   std::vector<float> lm_probs;
 
   // context_scores[i] contains the context-graph score for each token in ys.
-  // Used only in transducer mofified beam-search.
+  // Used only in transducer modified beam-search.
   // Elements filled only if `ContextGraph` is used.
   std::vector<float> context_scores;
 
@@ -62,6 +62,16 @@ struct Hypothesis {
 
   // the nn lm states
   std::vector<CopyableOrtValue> nn_lm_states;
+
+  // Decoder (prediction network) states of a stateful NeMo transducer.
+  // Used only by OnlineTransducerModifiedBeamSearchNeMoDecoder.
+  std::vector<CopyableOrtValue> nemo_decoder_states;
+
+  // Cached decoder (prediction network) output for the last token in `ys`.
+  // Unset while that token has not been consumed by the decoder yet; in that
+  // case `nemo_decoder_states` still precede it.
+  // Used only by OnlineTransducerModifiedBeamSearchNeMoDecoder.
+  CopyableOrtValue nemo_decoder_out;
 
   // the LODR states
   std::shared_ptr<LodrStateCost> lodr_state;

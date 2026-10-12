@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - apk
-      - android-qnn-2
+      - export-reazonspeech-zipformer-qnn-2
 
   workflow_dispatch:
 
@@ -24,8 +24,8 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest]
-        total: ["5"]
-        index: ["0", "1", "2", "3", "4"]
+        total: ["20"]
+        index: ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19"]
 
     steps:
       - uses: actions/checkout@v4
@@ -47,7 +47,7 @@ jobs:
       - name: ccache
         uses: hendrikmuhs/ccache-action@v1.2
         with:
-          key: ${{ matrix.os }}-android
+          key: ${{ matrix.os }}-android-qnn
 
       - name: Display NDK HOME
         shell: bash
@@ -175,7 +175,7 @@ jobs:
             SHERPA_ONNX_VERSION=$(grep "SHERPA_ONNX_VERSION" ./CMakeLists.txt  | cut -d " " -f 2  | cut -d '"' -f 2)
             echo "SHERPA_ONNX_VERSION $SHERPA_ONNX_VERSION"
 
-            git clone https://csukuangfj:$HF_TOKEN@huggingface.co/csukuangfj/sherpa-onnx-apk huggingface
+            git clone https://csukuangfj2:$HF_TOKEN@huggingface.co/csukuangfj2/sherpa-onnx-apk huggingface
             cd huggingface
             du -h -d1 .
             git fetch
@@ -189,4 +189,4 @@ jobs:
             git lfs track "*.apk"
             git add .
             git commit -m "add more apks for qnn"
-            git push https://csukuangfj:$HF_TOKEN@huggingface.co/csukuangfj/sherpa-onnx-apk main
+            git push https://csukuangfj2:$HF_TOKEN@huggingface.co/csukuangfj2/sherpa-onnx-apk main
