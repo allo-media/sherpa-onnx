@@ -4,14 +4,13 @@
 
 #include "sherpa-onnx/csrc/piper-phonemize-lexicon.h"
 
-#include <codecvt>
+#include <exception>
 #include <fstream>
 #include <locale>
 #include <map>
 #include <mutex>
 #include <sstream>
 #include <string>
-#include <strstream>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -30,6 +29,7 @@
 #include "phonemize.hpp"    // NOLINT
 #include "sherpa-onnx/csrc/file-utils.h"
 #include "sherpa-onnx/csrc/macros.h"
+#include "sherpa-onnx/csrc/text-utils.h"
 
 namespace sherpa_onnx {
 
@@ -64,14 +64,23 @@ void CallPhonemizeEspeak(const std::string &text,
                          std::vector<std::vector<piper::Phoneme>> *phonemes) {
   static std::mutex espeak_mutex;
 
+  // keep multi threads from calling into piper::phonemize_eSpeak
   std::lock_guard<std::mutex> lock(espeak_mutex);
 
-  // keep multi threads from calling into piper::phonemize_eSpeak
-  piper::phonemize_eSpeak(text, config, *phonemes);
+  try {
+    piper::phonemize_eSpeak(text, config, *phonemes);
+  } catch (const std::exception &ex) {
+    // piper::phonemize_eSpeak() throws if espeak-ng does not recognize
+    // config.voice, e.g., when a user passes an unsupported --kokoro-lang.
+    // Return no phonemes so that the caller fails the generation instead
+    // of the uncaught exception terminating the whole process.
+    SHERPA_ONNX_LOGE("Failed to phonemize '%s' with espeak-ng voice '%s': %s",
+                     text.c_str(), config.voice.c_str(), ex.what());
+    phonemes->clear();
+  }
 }
 
 static std::unordered_map<char32_t, int32_t> ReadTokens(std::istream &is) {
-  std::wstring_convert<std::codecvt_utf8<char32_t>, char32_t> conv;
   std::unordered_map<char32_t, int32_t> token2id;
 
   std::string line;
@@ -96,7 +105,7 @@ static std::unordered_map<char32_t, int32_t> ReadTokens(std::istream &is) {
       SHERPA_ONNX_EXIT(-1);
     }
 
-    s = conv.from_bytes(sym);
+    s = Utf8ToUtf32(sym);
     if (s.size() != 1) {
       // for tokens.txt from coqui-ai/TTS, the last token is <BLNK>
       if (s.size() == 6 && s[0] == '<' && s[1] == 'B' && s[2] == 'L' &&
@@ -127,17 +136,33 @@ static std::unordered_map<char32_t, int32_t> ReadTokens(std::istream &is) {
 // https://github.com/rhasspy/piper/blob/master/notebooks/piper_inference_(ONNX).ipynb
 static std::vector<int64_t> PiperPhonemesToIdsVits(
     const std::unordered_map<char32_t, int32_t> &token2id,
-    const std::vector<piper::Phoneme> &phonemes) {
+    const std::vector<piper::Phoneme> &phonemes, bool is_inflect) {
   // see
   // https://github.com/rhasspy/piper-phonemize/blob/master/src/phoneme_ids.hpp#L17
   int32_t pad = token2id.at(U'_');
-  int32_t bos = token2id.at(U'^');
-  int32_t eos = token2id.at(U'$');
+
+  int32_t bos = -1;
+  int32_t eos = -1;
+
+  if (!is_inflect) {
+    bos = token2id.at(U'^');
+    eos = token2id.at(U'$');
+  }
 
   std::vector<int64_t> ans;
-  ans.reserve(phonemes.size());
+  // bos + pad after bos + (phoneme + pad) * N + eos
+  ans.reserve(phonemes.size() * 2 + 3);
 
-  ans.push_back(bos);
+  if (is_inflect) {
+    ans.push_back(pad);
+  } else {
+    ans.push_back(bos);
+    // Match piper-phonemize phoneme_ids.cpp and OfflineTtsImpl::AddBlank():
+    // pad must follow bos so every phoneme (including the first) is framed.
+    // See https://github.com/k2-fsa/sherpa-onnx/issues/3721
+    ans.push_back(pad);
+  }
+
   for (auto p : phonemes) {
     if (token2id.count(p)) {
       ans.push_back(token2id.at(p));
@@ -147,7 +172,10 @@ static std::vector<int64_t> PiperPhonemesToIdsVits(
                        static_cast<uint32_t>(p));
     }
   }
-  ans.push_back(eos);
+
+  if (!is_inflect) {
+    ans.push_back(eos);
+  }
 
   return ans;
 }
@@ -240,6 +268,51 @@ static std::vector<std::vector<int64_t>> PiperPhonemesToIdsKokoroOrKitten(
   return ans;
 }
 
+static std::vector<std::vector<int64_t>> PiperPhonemesToIdsKitten(
+    const std::unordered_map<char32_t, int32_t> &token2id,
+    const std::vector<piper::Phoneme> &phonemes,
+    const OfflineTtsKittenModelMetaData &meta_data) {
+  std::vector<std::vector<int64_t>> ans;
+
+  std::vector<int64_t> current;
+  current.reserve(phonemes.size());
+
+  current.push_back(meta_data.start_id);
+
+  int32_t suffix_size = meta_data.add_pad_after_end ? 2 : 1;
+  for (auto p : phonemes) {
+    if (token2id.count(p)) {
+      int32_t emitted_tokens = p == '.' ? 2 : 1;
+      if (static_cast<int32_t>(current.size()) + emitted_tokens + suffix_size >
+          meta_data.max_token_len) {
+        current.push_back(meta_data.end_id);
+        if (meta_data.add_pad_after_end) {
+          current.push_back(meta_data.pad_id);
+        }
+        ans.push_back(std::move(current));
+
+        current.reserve(phonemes.size());
+        current.push_back(meta_data.start_id);
+      }
+
+      current.push_back(token2id.at(p));
+      if (p == '.') {
+        current.push_back(token2id.at(' '));
+      }
+    } else {
+      SHERPA_ONNX_LOGE("Skip unknown phonemes. Unicode codepoint: \\U+%04x.",
+                       static_cast<uint32_t>(p));
+    }
+  }
+
+  current.push_back(meta_data.end_id);
+  if (meta_data.add_pad_after_end) {
+    current.push_back(meta_data.pad_id);
+  }
+  ans.push_back(std::move(current));
+  return ans;
+}
+
 static std::vector<int64_t> CoquiPhonemesToIds(
     const std::unordered_map<char32_t, int32_t> &token2id,
     const std::vector<piper::Phoneme> &phonemes,
@@ -328,12 +401,21 @@ void InitEspeak(const std::string &data_dir) {
   });
 }
 
+std::vector<TokenIDs> ConvertTextToTokenIdsKokoroOrKitten(
+    const std::unordered_map<char32_t, int32_t> &token2id,
+    int32_t max_token_len, const std::string &text, const std::string &voice);
+
+std::vector<TokenIDs> ConvertTextToTokenIdsKitten(
+    const std::unordered_map<char32_t, int32_t> &token2id,
+    const OfflineTtsKittenModelMetaData &meta_data, const std::string &text,
+    const std::string &voice);
+
 PiperPhonemizeLexicon::PiperPhonemizeLexicon(
     const std::string &tokens, const std::string &data_dir,
     const OfflineTtsVitsModelMetaData &vits_meta_data)
     : vits_meta_data_(vits_meta_data) {
   {
-    std::ifstream is(tokens);
+    auto is = OpenInputFile(tokens);
     token2id_ = ReadTokens(is);
   }
 
@@ -347,7 +429,7 @@ PiperPhonemizeLexicon::PiperPhonemizeLexicon(
     : vits_meta_data_(vits_meta_data) {
   {
     auto buf = ReadFile(mgr, tokens);
-    std::istrstream is(buf.data(), buf.size());
+    std::istringstream is(std::string(buf.data(), buf.size()));
     token2id_ = ReadTokens(is);
   }
 
@@ -362,7 +444,7 @@ PiperPhonemizeLexicon::PiperPhonemizeLexicon(
     const OfflineTtsMatchaModelMetaData &matcha_meta_data)
     : matcha_meta_data_(matcha_meta_data), is_matcha_(true) {
   {
-    std::ifstream is(tokens);
+    auto is = OpenInputFile(tokens);
     token2id_ = ReadTokens(is);
   }
 
@@ -374,7 +456,7 @@ PiperPhonemizeLexicon::PiperPhonemizeLexicon(
     const OfflineTtsKokoroModelMetaData &kokoro_meta_data)
     : kokoro_meta_data_(kokoro_meta_data), is_kokoro_(true) {
   {
-    std::ifstream is(tokens);
+    auto is = OpenInputFile(tokens);
     token2id_ = ReadTokens(is);
   }
 
@@ -386,7 +468,7 @@ PiperPhonemizeLexicon::PiperPhonemizeLexicon(
     const OfflineTtsKittenModelMetaData &kitten_meta_data)
     : kitten_meta_data_(kitten_meta_data), is_kitten_(true) {
   {
-    std::ifstream is(tokens);
+    auto is = OpenInputFile(tokens);
     token2id_ = ReadTokens(is);
   }
 
@@ -400,7 +482,7 @@ PiperPhonemizeLexicon::PiperPhonemizeLexicon(
     : matcha_meta_data_(matcha_meta_data), is_matcha_(true) {
   {
     auto buf = ReadFile(mgr, tokens);
-    std::istrstream is(buf.data(), buf.size());
+    std::istringstream is(std::string(buf.data(), buf.size()));
     token2id_ = ReadTokens(is);
   }
 
@@ -417,7 +499,7 @@ PiperPhonemizeLexicon::PiperPhonemizeLexicon(
     : kokoro_meta_data_(kokoro_meta_data), is_kokoro_(true) {
   {
     auto buf = ReadFile(mgr, tokens);
-    std::istrstream is(buf.data(), buf.size());
+    std::istringstream is(std::string(buf.data(), buf.size()));
     token2id_ = ReadTokens(is);
   }
 
@@ -434,7 +516,7 @@ PiperPhonemizeLexicon::PiperPhonemizeLexicon(
     : kitten_meta_data_(kitten_meta_data), is_kitten_(true) {
   {
     auto buf = ReadFile(mgr, tokens);
-    std::istrstream is(buf.data(), buf.size());
+    std::istringstream is(std::string(buf.data(), buf.size()));
     token2id_ = ReadTokens(is);
   }
 
@@ -452,8 +534,8 @@ std::vector<TokenIDs> PiperPhonemizeLexicon::ConvertTextToTokenIds(
     return ConvertTextToTokenIdsKokoroOrKitten(
         token2id_, kokoro_meta_data_.max_token_len, text, voice);
   } else if (is_kitten_) {
-    return ConvertTextToTokenIdsKokoroOrKitten(
-        token2id_, kitten_meta_data_.max_token_len, text, voice);
+    return ConvertTextToTokenIdsKitten(token2id_, kitten_meta_data_, text,
+                                       voice);
   } else {
     return ConvertTextToTokenIdsVits(text, voice);
   }
@@ -513,6 +595,33 @@ std::vector<TokenIDs> ConvertTextToTokenIdsKokoroOrKitten(
   return ans;
 }
 
+std::vector<TokenIDs> ConvertTextToTokenIdsKitten(
+    const std::unordered_map<char32_t, int32_t> &token2id,
+    const OfflineTtsKittenModelMetaData &meta_data, const std::string &text,
+    const std::string &voice /*= ""*/) {
+  piper::eSpeakPhonemeConfig config;
+
+  // ./bin/espeak-ng-bin --path  ./install/share/espeak-ng-data/ --voices
+  // to list available voices
+  config.voice = voice;  // e.g., voice is en-us
+
+  std::vector<std::vector<piper::Phoneme>> phonemes;
+
+  CallPhonemizeEspeak(text, config, &phonemes);
+
+  std::vector<TokenIDs> ans;
+
+  for (const auto &p : phonemes) {
+    auto phoneme_ids = PiperPhonemesToIdsKitten(token2id, p, meta_data);
+
+    for (auto &ids : phoneme_ids) {
+      ans.emplace_back(std::move(ids));
+    }
+  }
+
+  return ans;
+}
+
 std::vector<TokenIDs> PiperPhonemizeLexicon::ConvertTextToTokenIdsVits(
     const std::string &text, const std::string &voice /*= ""*/) const {
   piper::eSpeakPhonemeConfig config;
@@ -529,9 +638,11 @@ std::vector<TokenIDs> PiperPhonemizeLexicon::ConvertTextToTokenIdsVits(
 
   std::vector<int64_t> phoneme_ids;
 
-  if (vits_meta_data_.is_piper || vits_meta_data_.is_icefall) {
+  if (vits_meta_data_.is_piper || vits_meta_data_.is_icefall ||
+      vits_meta_data_.is_inflect) {
     for (const auto &p : phonemes) {
-      phoneme_ids = PiperPhonemesToIdsVits(token2id_, p);
+      phoneme_ids =
+          PiperPhonemesToIdsVits(token2id_, p, vits_meta_data_.is_inflect);
       ans.emplace_back(std::move(phoneme_ids));
     }
   } else if (vits_meta_data_.is_coqui) {

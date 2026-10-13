@@ -6,9 +6,11 @@
 
 #include <sstream>
 #include <string>
+#include <vector>
 
 #include "sherpa-onnx/csrc/file-utils.h"
 #include "sherpa-onnx/csrc/macros.h"
+#include "sherpa-onnx/csrc/text-utils.h"
 
 namespace sherpa_onnx {
 
@@ -20,11 +22,13 @@ void QnnConfig::Register(ParseOptions *po) {
 
   po->Register(
       "qnn-context-binary", &context_binary,
-      "Path to model.bin. Used only when provider is qnn."
-      "If it exists, libmodel.so is ignored."
-      "If it does not exist, Context binary is saved to this path so that "
-      "it is loaded the next time you run it. You can leave it empty if you "
-      "don't use qnn");
+      "Path to model.bin. Used only when provider is qnn. "
+      "If it exists, libmodel.so is ignored. "
+      "For models with multiple QNN components, you can provide multiple "
+      "context binaries separated by commas. "
+      "If a specified file does not exist, a context binary is saved there so "
+      "that it is loaded the next time you run it. You can leave it empty if "
+      "you don't use qnn");
 
   po->Register("qnn-system-lib", &system_lib,
                "Required and used only when --qnn-context-binary is not empty "
@@ -37,24 +41,23 @@ bool QnnConfig::Validate() const {
     return false;
   }
 
-  if (!FileExists(backend_lib)) {
-    SHERPA_ONNX_LOGE("--qnn-backend-lib: '%s' does not exist",
-                     backend_lib.c_str());
-    return false;
-  }
+  // we don't check whether backend_lib and system_lib exist or not since
+  // dlopen() will find them by searching predefined paths
 
-  if (!context_binary.empty() && FileExists(context_binary)) {
-    if (system_lib.empty()) {
-      SHERPA_ONNX_LOGE(
-          "Please provide --qnn-system-lib when you provide "
-          "--qnn-context-binary");
-      return false;
-    }
+  if (!context_binary.empty()) {
+    std::vector<std::string> filenames;
+    SplitStringToVector(context_binary, ",", true, &filenames);
 
-    if (!FileExists(system_lib)) {
-      SHERPA_ONNX_LOGE("--qnn-system-lib: '%s' does not exist",
-                       system_lib.c_str());
-      return false;
+    for (const auto &name : filenames) {
+      if (FileExists(name)) {
+        if (system_lib.empty()) {
+          SHERPA_ONNX_LOGE(
+              "Please provide --qnn-system-lib when you provide "
+              "--qnn-context-binary");
+          return false;
+        }
+        break;
+      }
     }
   }
 

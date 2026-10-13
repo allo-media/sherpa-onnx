@@ -1,6 +1,14 @@
 // Copyright (c)  2023  Xiaomi Corporation (authors: Fangjun Kuang)
 //
-const portAudio = require('naudiodon2');
+let portAudio;
+try {
+  portAudio = require('naudiodon2');
+} catch (e) {
+  console.error(
+      'Error: naudiodon2 is not installed. Please install it with:\n' +
+      '  npm install naudiodon2');
+  process.exit(1);
+}
 // console.log(portAudio.getDevices());
 
 const sherpa_onnx = require('sherpa-onnx');
@@ -82,7 +90,7 @@ ai.on('data', data => {
       lastText = text;
       segmentIndex += 1;
     }
-    recognizer.reset(stream)
+    recognizer.reset(stream);
   }
 });
 
@@ -93,4 +101,4 @@ ai.on('close', () => {
 });
 
 ai.start();
-console.log('Started! Please speak')
+console.log('Started! Please speak');

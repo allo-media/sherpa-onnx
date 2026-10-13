@@ -18,10 +18,10 @@ struct BinaryContextTag {};
 
 class QnnModel {
  public:
-  QnnModel(const std::string &model_so, const QnnBackend *backend);
+  QnnModel(const std::string &model_so, const QnnBackend *backend, bool debug);
   QnnModel(const std::string &binary_context_file,
            const std::string &system_lib, const QnnBackend *backend,
-           BinaryContextTag tag);
+           BinaryContextTag tag, bool debug);
   ~QnnModel();
 
   bool SaveBinaryContext(const std::string &filename) const;
@@ -41,6 +41,8 @@ class QnnModel {
                           int32_t n) const;
 
   std::vector<float> GetOutputTensorData(const std::string &name) const;
+  std::vector<int32_t> GetOutputTensorDataInt32(
+      const std::string &name) const;
 
   bool Run() const;
   bool IsInitialized() const;
